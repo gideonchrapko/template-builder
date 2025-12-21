@@ -6,15 +6,16 @@ import { auth } from "@/lib/auth";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
   try {
+    const { path } = await params;
     const session = await auth();
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const filePath = join(process.cwd(), "storage", ...params.path);
+    const filePath = join(process.cwd(), "storage", ...path);
     
     if (!existsSync(filePath)) {
       return NextResponse.json({ error: "File not found" }, { status: 404 });
