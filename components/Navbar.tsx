@@ -2,6 +2,7 @@
 
 import { useSession, signOut } from "next-auth/react";
 import Link from "next/link";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Home, LogOut } from "lucide-react";
 
@@ -16,10 +17,13 @@ export default function Navbar() {
     <nav className="border-b bg-background">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         <Link href="/" className="flex items-center space-x-2">
-          <img
+          <Image
             src="/assets/botpress-logo-dark.svg"
             alt="Botpress Logo"
+            width={120}
+            height={40}
             className="h-8 w-auto"
+            priority
           />
         </Link>
 

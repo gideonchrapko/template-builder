@@ -2,7 +2,6 @@ import { z } from "zod";
 
 export const linkedinFormSchema = z.object({
   primaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Must be a valid hex color"),
-  peopleCount: z.enum(["1", "2", "3"]),
   scale: z.enum(["1", "2", "3"]),
   formats: z.array(z.enum(["png", "jpg", "webp", "pdf"])).min(1, "At least one format must be selected"),
   eventTitle: z.string().min(1, "Required").max(60, "Max 60 characters").trim(),
@@ -23,14 +22,8 @@ export const linkedinFormSchema = z.object({
         "Only PNG, JPG, and WebP images are allowed"
       ),
     })
-  ).min(1).max(3),
-}).refine(
-  (data) => data.people.length === parseInt(data.peopleCount),
-  {
-    message: "Number of people must match people count selection",
-    path: ["people"],
-  }
-);
+  ).min(1, "At least one person is required").max(3, "Maximum 3 people allowed"),
+});
 
 export type LinkedinFormData = z.infer<typeof linkedinFormSchema>;
 
