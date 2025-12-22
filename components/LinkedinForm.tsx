@@ -76,10 +76,13 @@ export default function LinkedinForm() {
         body: formData,
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Submission failed");
-      }
+            if (!response.ok) {
+              const errorData = await response.json().catch(() => ({}));
+              const errorMessage = errorData.details 
+                ? `${errorData.error}: ${errorData.details}`
+                : errorData.error || "Submission failed";
+              throw new Error(errorMessage);
+            }
 
       const result = await response.json();
       router.push(`/results/${result.submissionId}`);
