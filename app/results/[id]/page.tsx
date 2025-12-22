@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,16 +10,15 @@ import { Download } from "lucide-react";
 export default async function ResultsPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }) {
-  const { id } = await params;
-  const session = await auth();
+  const session = await getServerSession(authOptions);
   if (!session?.user?.email) {
     redirect("/");
   }
 
   const submission = await prisma.submission.findUnique({
-    where: { id },
+    where: { id: params.id },
   });
 
   if (!submission || submission.ownerEmail !== session.user.email) {
