@@ -14,12 +14,12 @@ const provider = process.env.DATABASE_PROVIDER || 'sqlite';
 // Read the schema file
 const schema = fs.readFileSync(schemaPath, 'utf8');
 
-// Replace the provider line - find any provider = "value" in the datasource block
-// Match: provider = "sqlite" or provider = "postgresql" (with optional whitespace)
-const updatedSchema = schema.replace(
-  /(datasource\s+db\s*\{[^}]*?provider\s*=\s*)(?:["'][^"']+["']|env\(["'][^"']+["']\))/s,
-  `$1"${provider}"`
-);
+// Replace ONLY the provider in the datasource block (not the generator)
+// Match: datasource db { ... provider = "value" ... }
+const datasourceBlock = /(datasource\s+db\s*\{[^}]*?)(provider\s*=\s*)(?:["'][^"']+["']|env\(["'][^"']+["']\))([^}]*?\})/s;
+const updatedSchema = schema.replace(datasourceBlock, (match, before, providerKeyword, after) => {
+  return before + providerKeyword + `"${provider}"` + after;
+});
 
 if (updatedSchema !== schema) {
   fs.writeFileSync(schemaPath, updatedSchema);
