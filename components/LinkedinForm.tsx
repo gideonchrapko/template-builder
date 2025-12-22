@@ -77,20 +77,31 @@ export default function LinkedinForm() {
       });
 
       if (!response.ok) {
-        throw new Error("Submission failed");
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Submission failed");
       }
 
       const result = await response.json();
       router.push(`/results/${result.submissionId}`);
-    } catch {
-      alert("Failed to submit. Please try again.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to submit. Please try again.";
+      alert(message);
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const onError = (errors: any) => {
+    console.error("Form validation errors:", errors);
+    // Show first error
+    const firstError = Object.values(errors)[0] as any;
+    if (firstError?.message) {
+      alert(`Validation error: ${firstError.message}`);
+    }
+  };
+
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+    <form onSubmit={handleSubmit(onSubmit, onError)} className="space-y-8">
       {/* Color Section */}
       <Card>
         <CardHeader>
