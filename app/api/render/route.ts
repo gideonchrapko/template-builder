@@ -36,7 +36,10 @@ export async function POST(req: NextRequest) {
     const dimensions = getPosterDimensions(submission.scale);
 
     // Launch Playwright
-    const browser = await chromium.launch();
+    // For Vercel, use system dependencies
+    const browser = await chromium.launch({
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
     const page = await browser.newPage();
     
     // Set viewport to match poster dimensions
