@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { renderTemplate, getPosterDimensions } from "@/lib/template-renderer";
-import { chromium } from "playwright";
-import { installChromium } from "@playwright/browser-chromium";
+import puppeteer from "puppeteer-core";
+import chromium from "@sparticuz/chromium";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import { existsSync } from "fs";
@@ -36,20 +36,20 @@ export async function POST(req: NextRequest) {
     const html = await renderTemplate(submission);
     const dimensions = getPosterDimensions(submission.scale);
 
-    // Launch Playwright
-    // For Vercel, set browsers path to /tmp (writable directory)
-    if (process.env.VERCEL && !process.env.PLAYWRIGHT_BROWSERS_PATH) {
-      process.env.PLAYWRIGHT_BROWSERS_PATH = join(os.tmpdir(), 'playwright-browsers');
-      // Ensure Chromium is installed in the writable location
-      await installChromium();
-    }
-    const browser = await chromium.launch({
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    // Launch Puppeteer with Chromium
+    // For Vercel, use @sparticuz/chromium (serverless-optimized)
+    const browser = await puppeteer.launch({
+      args: process.env.VERCEL ? chromium.args : ['--no-sandbox', '--disable-setuid-sandbox'],
+      defaultViewport: chromium.defaultViewport,
+      executablePath: process.env.VERCEL
+        ? await chromium.executablePath()
+        : undefined, // Use system Chrome/Chromium in local dev
+      headless: chromium.headless,
     });
     const page = await browser.newPage();
     
     // Set viewport to match poster dimensions
-    await page.setViewportSize({
+    await page.setViewport({
       width: dimensions.width,
       height: dimensions.height,
     });
@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
           printBackground: true,
         });
       } else if (format === "webp") {
-        // Playwright doesn't support webp in screenshot type, save as png
+        // Puppeteer doesn't support webp in screenshot type, save as png
         // The file will be served with webp extension but actual format is png
         await page.screenshot({
           path: filepath,
