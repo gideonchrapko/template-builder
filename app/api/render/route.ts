@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
     });
 
     // Load HTML
-    await page.setContent(html, { waitUntil: "networkidle" });
+    await page.setContent(html, { waitUntil: "networkidle0" });
 
     // Use /tmp in production (Vercel), storage/outputs in local dev
     const outputDir = process.env.VERCEL
