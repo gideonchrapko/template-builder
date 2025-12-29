@@ -149,7 +149,7 @@ export default function DynamicForm({ templateFamily, config }: DynamicFormProps
       formData.append("primaryColor", data.primaryColor);
       formData.append("peopleCount", data.people.length.toString());
       formData.append("scale", data.scale);
-      data.formats.forEach((format) => {
+      data.formats.forEach((format: "png" | "jpg" | "webp" | "pdf") => {
         formData.append("formats", format);
       });
       formData.append("eventTitle", data.eventTitle);
@@ -260,7 +260,7 @@ export default function DynamicForm({ templateFamily, config }: DynamicFormProps
             </Select>
             {errors.scale && (
               <p className="text-sm text-destructive mt-1">
-                {errors.scale.message}
+                {errors.scale.message as string}
               </p>
             )}
           </div>
@@ -279,7 +279,7 @@ export default function DynamicForm({ templateFamily, config }: DynamicFormProps
                       if (e.target.checked) {
                         setValue("formats", [...currentFormats, format], { shouldValidate: true });
                       } else {
-                        setValue("formats", currentFormats.filter((f) => f !== format), { shouldValidate: true });
+                        setValue("formats", currentFormats.filter((f: "png" | "jpg" | "webp" | "pdf") => f !== format), { shouldValidate: true });
                       }
                     }}
                     className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
@@ -295,7 +295,7 @@ export default function DynamicForm({ templateFamily, config }: DynamicFormProps
             </div>
             {errors.formats && (
               <p className="text-sm text-destructive mt-1">
-                {errors.formats.message}
+                {errors.formats.message as string}
               </p>
             )}
           </div>
@@ -335,7 +335,7 @@ export default function DynamicForm({ templateFamily, config }: DynamicFormProps
                 <DatePicker
                   value={watch("eventDate")}
                   onChange={(date) => setValue("eventDate", date!)}
-                  error={errors.eventDate?.message}
+                  error={errors.eventDate?.message as string | undefined}
                 />
               </div>
             ))}
@@ -412,9 +412,9 @@ export default function DynamicForm({ templateFamily, config }: DynamicFormProps
                           placeholder={personField.placeholder}
                           maxLength={personField.maxLength}
                         />
-                        {errors.people?.[index]?.[personField.name as any] && (
+                        {((errors.people as any)?.[index] as any)?.[personField.name] && (
                           <p className="text-sm text-destructive mt-1">
-                            {(errors.people[index] as any)?.[personField.name]?.message as string}
+                            {((errors.people as any)?.[index] as any)?.[personField.name]?.message as string}
                           </p>
                         )}
                       </div>
@@ -438,9 +438,9 @@ export default function DynamicForm({ templateFamily, config }: DynamicFormProps
                             }
                           }}
                         />
-                        {errors.people?.[index] && (errors.people[index] as any)?.[personField.name] && (
+                        {((errors.people as any)?.[index] as any)?.[personField.name] && (
                           <p className="text-sm text-destructive mt-1">
-                            {(errors.people[index] as any)[personField.name]?.message as string}
+                            {((errors.people as any)?.[index] as any)[personField.name]?.message as string}
                           </p>
                         )}
                       </div>
