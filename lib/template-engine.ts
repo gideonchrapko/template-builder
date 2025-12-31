@@ -230,18 +230,22 @@ function processPeople(
     // Process each person field
     for (const personField of peopleField.fields) {
       if (personField.type === "image" && personField.name === "headshot") {
-        // Handle headshot replacement
+        // Handle headshot replacement - replace only FIRST occurrence per person
         const headshotDataUri = uploadUrls[index];
         if (headshotDataUri && personField.replacements) {
           for (const replacement of personField.replacements) {
             // Escape special regex characters in pattern
             const escapedPattern = replacement.pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const imgSrcPattern = new RegExp(`src="${escapedPattern}"`, "g");
-            const svgHrefPattern = new RegExp(`href="${escapedPattern}"`, "g");
+            // Use non-global regex to replace only first occurrence
+            const imgSrcPattern = new RegExp(`src="${escapedPattern}"`);
+            const svgHrefPattern = new RegExp(`href="${escapedPattern}"`);
             
+            // Replace first occurrence of src pattern
             if (html.match(imgSrcPattern)) {
               html = html.replace(imgSrcPattern, `src="${headshotDataUri}"`);
-            } else if (html.match(svgHrefPattern)) {
+            } 
+            // Replace first occurrence of href pattern (for SVG images)
+            else if (html.match(svgHrefPattern)) {
               html = html.replace(svgHrefPattern, `href="${headshotDataUri}"`);
             }
           }
