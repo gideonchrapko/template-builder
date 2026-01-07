@@ -201,6 +201,53 @@ Phase 8: Long-Format Content [░░░░░░░░░░] Weeks 21-24
 - [ ] Build import UI (`app/admin/templates/import/figma`)
 - [ ] Test import workflow end-to-end
 
+### Considerations for HTML Templates in Hybrid System
+
+**When creating new HTML templates, consider:**
+
+1. **Explicit Format Declaration**
+   - Always add `"format": "html"` to `config.json` for clarity
+   - Prevents auto-detection confusion if schema files exist later
+
+2. **Structure for Future Conversion** (Optional but Recommended)
+   - Use semantic class names that map to node types (e.g., `.text-node`, `.image-node`)
+   - Keep absolute positioning explicit (easier to convert later)
+   - Use consistent binding patterns (`{{fieldName}}` in layer names/IDs)
+   - Document complex CSS that might be hard to convert
+
+3. **Binding Patterns**
+   - Use consistent placeholder patterns in HTML (e.g., `{{eventTitle}}`)
+   - Match patterns in `config.json` replacements array
+   - Consider using data attributes for bindings: `data-binding="eventTitle"`
+
+4. **Variant Management**
+   - HTML templates still use separate files (`template-1.html`, `template-2.html`, etc.)
+   - Consider if variants could be unified with CSS classes (easier to convert later)
+   - Document variant differences clearly
+
+5. **Color Token Compatibility**
+   - Use consistent color values that can be tokenized later
+   - Consider using CSS custom properties for colors (easier to convert to tokens)
+   - Document which colors should become tokens
+
+6. **Asset Management**
+   - Use relative paths for assets (easier to migrate to cloud storage)
+   - Keep assets organized in `assets/` folder
+   - Document asset dependencies
+
+7. **Complex Layouts**
+   - HTML is perfect for complex CSS (flexbox, grid, text wrapping)
+   - Document why HTML was chosen over node graphs
+   - Consider if complex layouts could be simplified for conversion
+
+**Best Practices:**
+- ✅ Use HTML for long-format, complex layouts, dynamic text
+- ✅ Explicitly declare format in config.json
+- ✅ Keep structure clean and semantic
+- ✅ Document conversion blockers (complex CSS, etc.)
+- ❌ Don't mix formats in same template
+- ❌ Don't rely on auto-detection for production templates
+
 #### Illustrator Support (Weeks 10-11)
 
 - [ ] Create Illustrator export workflow
