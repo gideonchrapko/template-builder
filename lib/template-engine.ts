@@ -43,9 +43,20 @@ async function processAssets(
   }
   
   // Get logo file name (with swap logic)
-  const logoFile = (config.assets.logo.swap && config.assets.logo.swap[submission.templateFamily]) 
-    ? config.assets.logo.swap[submission.templateFamily] 
-    : config.assets.logo.default;
+  // Check both exact match and partial match (e.g., "code-a-quebec-thumbnail" should match "code-a-quebec")
+  let logoFile = config.assets.logo.default;
+  if (config.assets.logo.swap) {
+    // Try exact match first
+    if (config.assets.logo.swap[submission.templateFamily]) {
+      logoFile = config.assets.logo.swap[submission.templateFamily];
+    } else {
+      // Try partial match (e.g., "code-a-quebec-thumbnail" -> "code-a-quebec")
+      const templateBase = submission.templateFamily.split('-').slice(0, -1).join('-');
+      if (templateBase && config.assets.logo.swap[templateBase]) {
+        logoFile = config.assets.logo.swap[templateBase];
+      }
+    }
+  }
 
   // Process src="assets/..." patterns
   const assetSrcRegex = /src="assets\/([^"]+)"/g;
