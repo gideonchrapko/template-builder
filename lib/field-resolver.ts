@@ -53,7 +53,9 @@ export function resolveFieldValue(
  * Format date field based on config
  */
 function formatDateField(submission: Submission, config: TemplateConfig): string {
-  const dateField = config.fields.find(f => f.name === "eventDate");
+  const dateField = config.fields && Array.isArray(config.fields) 
+    ? config.fields.find(f => f.name === "eventDate") 
+    : undefined;
   
   if (!dateField || !dateField.format) {
     return submission.eventDate.toString();
@@ -67,7 +69,9 @@ function formatDateField(submission: Submission, config: TemplateConfig): string
  * Format time field based on config
  */
 function formatTimeField(submission: Submission, config: TemplateConfig): string {
-  const timeField = config.fields.find(f => f.name === "doorTime");
+  const timeField = config.fields && Array.isArray(config.fields)
+    ? config.fields.find(f => f.name === "doorTime")
+    : undefined;
   
   if (!timeField) {
     return submission.doorTime;
@@ -118,7 +122,16 @@ export function prepareBindingData(
   submission: Submission,
   config: TemplateConfig
 ): Record<string, any> {
-  const people = JSON.parse(submission.people);
+  // Safely parse people, defaulting to empty array
+  let people: any[] = [];
+  try {
+    if (submission.people && submission.people.trim() !== "") {
+      people = JSON.parse(submission.people);
+      if (!Array.isArray(people)) people = [];
+    }
+  } catch {
+    people = [];
+  }
   
   const data: Record<string, any> = {
     eventTitle: resolveFieldValue("eventTitle", submission, config),
@@ -133,12 +146,14 @@ export function prepareBindingData(
   };
   
   // Add nested people fields for easier binding
-  people.forEach((person: any, index: number) => {
-    data[`people[${index}].name`] = person.name;
-    data[`people[${index}].role`] = person.role;
-    data[`people[${index}].talkTitle`] = person.talkTitle;
-    data[`people[${index}].headshot`] = person.headshot;
-  });
+  if (Array.isArray(people)) {
+    people.forEach((person: any, index: number) => {
+      data[`people[${index}].name`] = person.name;
+      data[`people[${index}].role`] = person.role;
+      data[`people[${index}].talkTitle`] = person.talkTitle;
+      data[`people[${index}].headshot`] = person.headshot;
+    });
+  }
   
   return data;
 }

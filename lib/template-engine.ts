@@ -188,6 +188,7 @@ function replaceField(
 
   // Apply all replacements for this field
   for (const replacement of field.replacements) {
+    if (!replacement || !replacement.pattern) continue;
     if (replacement.regex) {
       // Use regex replacement
       const flags = replacement.flags || "g";
@@ -240,8 +241,9 @@ function processPeople(
       if (personField.type === "image" && personField.name === "headshot") {
         // Handle headshot replacement
         const headshotDataUri = uploadUrls[index];
-        if (headshotDataUri && personField.replacements) {
+        if (headshotDataUri && personField.replacements && Array.isArray(personField.replacements)) {
           for (const replacement of personField.replacements) {
+            if (!replacement || !replacement.pattern) continue;
             // Escape special regex characters in pattern
             const escapedPattern = replacement.pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             const imgSrcPattern = new RegExp(`src="${escapedPattern}"`, "g");
@@ -254,7 +256,7 @@ function processPeople(
             }
           }
         }
-      } else if (personField.replacements && personField.type === "text") {
+      } else if (personField.replacements && Array.isArray(personField.replacements) && personField.type === "text") {
         // Handle text fields (name, role, talkTitle)
         const personValue = person[personField.name];
         if (personValue) {
@@ -334,14 +336,16 @@ export async function renderTemplateWithConfig(submission: Submission): Promise<
   }
 
   // Process all fields
-  for (const field of config.fields) {
-    if (field.type === "people") {
-      html = processPeople(html, field, people, uploadUrls);
-    } else {
-      // Get value from submission
-      const value = (submission as any)[field.name];
-      if (value !== undefined && value !== null) {
-        html = replaceField(html, field, value, submission);
+  if (config.fields && Array.isArray(config.fields)) {
+    for (const field of config.fields) {
+      if (field.type === "people") {
+        html = processPeople(html, field, people, uploadUrls);
+      } else {
+        // Get value from submission
+        const value = (submission as any)[field.name];
+        if (value !== undefined && value !== null) {
+          html = replaceField(html, field, value, submission);
+        }
       }
     }
   }
