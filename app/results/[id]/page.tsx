@@ -42,18 +42,36 @@ export default async function ResultsPage({
     );
   }
 
-  // Parse outputs from JSON
-  const outputs = submission.outputs ? (JSON.parse(submission.outputs) as Array<{ url: string; format: string; mimeType: string }>) : null;
+  // Parse outputs from JSON (safely)
+  let outputs: Array<{ url: string; format: string; mimeType: string }> | null = null;
+  try {
+    if (submission.outputs && typeof submission.outputs === "string" && submission.outputs.trim() !== "") {
+      outputs = JSON.parse(submission.outputs) as Array<{ url: string; format: string; mimeType: string }>;
+      if (!Array.isArray(outputs)) {
+        outputs = null;
+      }
+    }
+  } catch (error) {
+    console.error("Error parsing outputs JSON:", error);
+    outputs = null;
+  }
   
   // Get first image output for preview (prefer PNG, then JPG, then WebP)
   const previewOutput = outputs?.find((o) => o.format !== "pdf") || outputs?.[0];
   const previewUrl = previewOutput ? previewOutput.url : null;
   const isPreviewImage = previewOutput?.format !== "pdf";
 
-  // Load template config to get name
-  const templateConfig = await getTemplateConfig(submission.templateFamily);
-  const templateName = templateConfig?.name || "Template";
-  const templateHref = `/templates/${submission.templateFamily}/create`;
+  // Load template config to get name (safely)
+  let templateName = "Template";
+  let templateHref = "/templates";
+  try {
+    const templateConfig = await getTemplateConfig(submission.templateFamily);
+    templateName = templateConfig?.name || "Template";
+    templateHref = `/templates/${submission.templateFamily}/create`;
+  } catch (error) {
+    console.error("Error loading template config:", error);
+    // Use defaults already set above
+  }
 
   return (
     <div className="container mx-auto py-8 max-w-4xl">
