@@ -131,23 +131,29 @@ export default function DynamicForm({ templateFamily, config }: DynamicFormProps
       scale: "1",
       formats: ["png"],
       doorTime: config.fields.find((f) => f.name === "doorTime")?.default || "18:00",
-      people: [{ name: "", role: "", talkTitle: "", headshot: undefined }],
+      // Only include people if the template has a people field
+      ...(peopleField ? { people: [{ name: "", role: "", talkTitle: "", headshot: undefined }] } : {}),
     },
   });
 
+  // Always call useFieldArray (React hooks rule), but only use it if people field exists
   const { fields, append, remove } = useFieldArray({
     control,
     name: "people",
   });
-
-  const canAddPerson = fields.length < maxPeople;
+  
+  // Ensure fields is always an array (safety check)
+  const safeFields = Array.isArray(fields) ? fields : [];
+  const canAddPerson = peopleField ? safeFields.length < maxPeople : false;
 
   const onSubmit = async (data: FormData) => {
     setIsSubmitting(true);
     try {
       const formData = new FormData();
       formData.append("primaryColor", data.primaryColor);
-      formData.append("peopleCount", data.people.length.toString());
+      // Only append peopleCount if people field exists
+      const peopleCount = peopleField && data.people ? data.people.length : 0;
+      formData.append("peopleCount", peopleCount.toString());
       formData.append("scale", data.scale);
       data.formats.forEach((format: "png" | "jpg" | "webp" | "pdf") => {
         formData.append("formats", format);
@@ -157,8 +163,9 @@ export default function DynamicForm({ templateFamily, config }: DynamicFormProps
       formData.append("doorTime", data.doorTime);
       formData.append("templateFamily", templateFamily);
 
-      // Append headshots (compress first if needed)
-      for (let index = 0; index < data.people.length; index++) {
+      // Append headshots (compress first if needed) - only if people field exists
+      if (peopleField && data.people && Array.isArray(data.people)) {
+        for (let index = 0; index < data.people.length; index++) {
         const person = data.people[index];
         let headshotFile = person.headshot;
         
@@ -173,9 +180,10 @@ export default function DynamicForm({ templateFamily, config }: DynamicFormProps
         if (headshotFile) {
           formData.append(`headshot_${index}`, headshotFile);
         }
-        formData.append(`person_${index}_name`, person.name);
-        formData.append(`person_${index}_role`, person.role);
-        formData.append(`person_${index}_talkTitle`, person.talkTitle);
+          formData.append(`person_${index}_name`, person.name);
+          formData.append(`person_${index}_role`, person.role);
+          formData.append(`person_${index}_talkTitle`, person.talkTitle);
+        }
       }
 
       const response = await fetch("/api/submit", {
@@ -366,7 +374,7 @@ export default function DynamicForm({ templateFamily, config }: DynamicFormProps
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>
-              {peopleField.label} ({fields.length}/{maxPeople})
+              {peopleField.label} ({safeFields.length}/{maxPeople})
             </CardTitle>
             {canAddPerson && (
               <Button
@@ -381,13 +389,13 @@ export default function DynamicForm({ templateFamily, config }: DynamicFormProps
             )}
           </CardHeader>
           <CardContent className="space-y-6">
-            {fields.map((field, index) => (
+            {safeFields.map((field, index) => (
               <Card key={field.id} className="p-4">
                 <CardHeader className="flex flex-row items-center justify-between p-0 mb-4">
                   <CardTitle className="text-lg">
                     {peopleField.fields?.find((f) => f.name === "name")?.label || "Speaker"} {index + 1}
                   </CardTitle>
-                  {fields.length > 1 && (
+                  {safeFields.length > 1 && (
                     <Button
                       type="button"
                       variant="ghost"
@@ -448,7 +456,7 @@ export default function DynamicForm({ templateFamily, config }: DynamicFormProps
                 </CardContent>
               </Card>
             ))}
-            {fields.length === 0 && (
+            {safeFields.length === 0 && (
               <p className="text-sm text-muted-foreground text-center py-4">
                 No people added. Click "Add Person" to get started.
               </p>
