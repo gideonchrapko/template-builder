@@ -191,7 +191,18 @@ function replaceField(
       // If date is missing, return empty string or placeholder
       return html; // Don't replace if value is missing
     }
-    replacementValue = formatDate(field, new Date(value));
+    try {
+      const dateValue = value instanceof Date ? value : new Date(value);
+      if (isNaN(dateValue.getTime())) {
+        // Invalid date, don't replace
+        console.warn(`Invalid date value for field ${field.name}: ${value}`);
+        return html;
+      }
+      replacementValue = formatDate(field, dateValue);
+    } catch (error) {
+      console.error(`Error formatting date for field ${field.name}:`, error);
+      return html; // Don't replace if date formatting fails
+    }
   } else if (field.type === "time") {
     if (!value) {
       return html; // Don't replace if value is missing
