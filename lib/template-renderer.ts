@@ -188,8 +188,25 @@ async function processNodeAssets(
   }
   
   // Process speaker photos (from uploadUrls) - handle both img src and SVG href
-  const people = JSON.parse(submission.people);
-  const uploadUrls = JSON.parse(submission.uploadUrls);
+  // Safely parse people and uploadUrls, defaulting to empty arrays if undefined/null/empty
+  let people: any[] = [];
+  let uploadUrls: string[] = [];
+  try {
+    if (submission.people && submission.people.trim() !== "") {
+      people = JSON.parse(submission.people);
+      if (!Array.isArray(people)) people = [];
+    }
+  } catch {
+    people = [];
+  }
+  try {
+    if (submission.uploadUrls && submission.uploadUrls.trim() !== "") {
+      uploadUrls = JSON.parse(submission.uploadUrls);
+      if (!Array.isArray(uploadUrls)) uploadUrls = [];
+    }
+  } catch {
+    uploadUrls = [];
+  }
   
   for (let i = 0; i < people.length; i++) {
     const headshotDataUri = uploadUrls[i];
