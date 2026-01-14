@@ -57,14 +57,30 @@ export async function POST(req: NextRequest) {
     try {
       html = await renderTemplate(submission);
     } catch (error) {
-      console.error("Error rendering template:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      
+      console.error("=== TEMPLATE RENDERING ERROR ===");
+      console.error("Error:", errorMessage);
+      console.error("Stack:", errorStack);
       console.error("Submission ID:", submissionId);
       console.error("Template Family:", submission.templateFamily);
       console.error("Template Variant:", submission.templateVariant);
+      console.error("Submission data:", {
+        eventTitle: submission.eventTitle,
+        eventDate: submission.eventDate,
+        primaryColor: submission.primaryColor,
+        people: submission.people?.substring(0, 100),
+        uploadUrls: submission.uploadUrls?.substring(0, 100),
+      });
+      console.error("=================================");
+      
       return NextResponse.json(
         { 
           error: "Failed to render template", 
-          details: error instanceof Error ? error.message : String(error) 
+          details: errorMessage,
+          submissionId,
+          templateFamily: submission.templateFamily,
         },
         { status: 500 }
       );
