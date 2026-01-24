@@ -41,12 +41,12 @@ export const authOptions = {
   },
   cookies: {
     pkceCodeVerifier: {
-      name: `${process.env.NODE_ENV === "production" ? "__Secure-" : ""}authjs.pkce.code_verifier`,
+      name: `${process.env.NODE_ENV === "production" || process.env.VERCEL ? "__Secure-" : ""}authjs.pkce.code_verifier`,
       options: {
         httpOnly: true,
         sameSite: "lax" as const,
         path: "/",
-        secure: process.env.NODE_ENV === "production",
+        secure: process.env.NODE_ENV === "production" || !!process.env.VERCEL, // Vercel uses HTTPS, so secure should be true
       },
     },
   },
