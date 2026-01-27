@@ -13,12 +13,9 @@ function createPrismaClient() {
   // Use Accelerate extension if PRISMA_ACCELERATE_URL is set
   // This provides connection pooling for serverless environments
   // Vercel locks DATABASE_URL, so we use a separate env var for Accelerate
+  // withAccelerate() automatically reads from PRISMA_ACCELERATE_URL env var
   if (process.env.PRISMA_ACCELERATE_URL) {
-    return baseClient.$extends(
-      withAccelerate({
-        url: process.env.PRISMA_ACCELERATE_URL,
-      })
-    );
+    return baseClient.$extends(withAccelerate());
   }
 
   return baseClient;
