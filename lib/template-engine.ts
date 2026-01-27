@@ -6,6 +6,7 @@ import { Submission } from "@prisma/client";
 import { existsSync } from "fs";
 import { lightenColor } from "@/lib/utils";
 import { getTemplateConfig, type TemplateConfig, type TemplateField } from "@/lib/template-registry";
+import { prisma } from "@/lib/prisma";
 
 // Helper function to convert file to base64 data URI
 const fileToDataUri = async (filePath: string): Promise<string | null> => {
@@ -324,19 +325,45 @@ export async function renderTemplateWithConfig(submission: Submission): Promise<
   // Extract variant number
   const variantNumber = templateVariant.split("-").pop() || "1";
   
-  // Load template HTML
-  const templatePath = join(
-    process.cwd(),
-    "templates",
-    templateFamily,
-    `template-${variantNumber}.html`
-  );
+  // Load template HTML - Priority 1: Database, Priority 2: Filesystem
+  let html: string;
   
-  if (!existsSync(templatePath)) {
-    throw new Error(`Template file not found: ${templatePath}`);
+  try {
+    // Try database first (for Figma imports and production)
+    const template = await prisma.template.findUnique({
+      where: { family: templateFamily },
+    });
+    
+    if (template) {
+      // Get HTML based on variant
+      if (variantNumber === "1" && template.htmlContent) {
+        html = template.htmlContent;
+      } else if (variantNumber === "2" && template.htmlVariant2) {
+        html = template.htmlVariant2;
+      } else if (variantNumber === "3" && template.htmlVariant3) {
+        html = template.htmlVariant3;
+      } else {
+        // Fall back to filesystem if variant not in database
+        throw new Error(`Variant ${variantNumber} not found in database`);
+      }
+    } else {
+      throw new Error(`Template ${templateFamily} not found in database`);
+    }
+  } catch (error) {
+    // Fallback to filesystem (for existing templates and development)
+    const templatePath = join(
+      process.cwd(),
+      "templates",
+      templateFamily,
+      `template-${variantNumber}.html`
+    );
+    
+    if (!existsSync(templatePath)) {
+      throw new Error(`Template file not found: ${templatePath}`);
+    }
+    
+    html = await readFile(templatePath, "utf-8");
   }
-
-  let html = await readFile(templatePath, "utf-8");
   // Safely parse people and uploadUrls, defaulting to empty arrays if undefined/null/empty
   let people: any[] = [];
   let uploadUrls: string[] = [];
@@ -350,8 +377,16 @@ export async function renderTemplateWithConfig(submission: Submission): Promise<
   }
   try {
     if (submission.uploadUrls && typeof submission.uploadUrls === "string" && submission.uploadUrls.trim() !== "") {
-      uploadUrls = JSON.parse(submission.uploadUrls);
-      if (!Array.isArray(uploadUrls)) uploadUrls = [];
+      const parsed = JSON.parse(submission.uploadUrls);
+      // Handle new format: { headshots: [...], images: {...} }
+      if (parsed.headshots && Array.isArray(parsed.headshots)) {
+        uploadUrls = parsed.headshots;
+      } else if (Array.isArray(parsed)) {
+        // Legacy format: just an array
+        uploadUrls = parsed;
+      } else {
+        uploadUrls = [];
+      }
     }
   } catch {
     uploadUrls = [];
@@ -380,11 +415,24 @@ export async function renderTemplateWithConfig(submission: Submission): Promise<
         throw new Error("primaryColor is missing from submission");
       }
       const lighterPrimaryColor = lightenColor(submission.primaryColor, 25);
+      
+      // Replace default color
       html = html.replace(/#3D9DFF/g, submission.primaryColor);
+      
+      // Replace any frame background colors with primaryColor
+      // This handles frames that were generated with specific colors (like the month frame)
+      // We'll replace common frame colors (red frames, etc.) with primaryColor
+      // First, try to replace the specific color from the month frame if it exists
+      html = html.replace(/#ff4e4e/gi, submission.primaryColor); // Common red frame color
+      html = html.replace(/#FF4E4E/g, submission.primaryColor);
+      
+      // Also replace any color replacements from config
       if (config.colorReplacements) {
         for (const [color, fieldName] of Object.entries(config.colorReplacements)) {
           if (fieldName === "secondaryColor") {
-            html = html.replace(new RegExp(color, "g"), lighterPrimaryColor);
+            html = html.replace(new RegExp(color.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), "g"), lighterPrimaryColor);
+          } else if (fieldName === "primaryColor") {
+            html = html.replace(new RegExp(color.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), "g"), submission.primaryColor);
           }
         }
       }
@@ -393,15 +441,66 @@ export async function renderTemplateWithConfig(submission: Submission): Promise<
       throw new Error(`Failed to process color replacements: ${error instanceof Error ? error.message : String(error)}`);
     }
 
+    // Parse uploadUrls to get standalone image uploads
+    let imageUploads: Record<string, string> = {};
+    try {
+      if (submission.uploadUrls && typeof submission.uploadUrls === "string" && submission.uploadUrls.trim() !== "") {
+        const parsed = JSON.parse(submission.uploadUrls);
+        if (parsed.images && typeof parsed.images === "object") {
+          imageUploads = parsed.images;
+        }
+        // Also handle legacy format (array of headshots)
+        if (Array.isArray(parsed) || (parsed.headshots && Array.isArray(parsed.headshots))) {
+          // Legacy format, imageUploads stays empty
+        }
+      }
+    } catch {
+      // If parsing fails, imageUploads stays empty
+    }
+
     // Process all fields
     if (config.fields && Array.isArray(config.fields)) {
       for (const field of config.fields) {
         try {
           if (field.type === "people") {
             html = processPeople(html, field, people, uploadUrls);
+          } else if (field.type === "image" && field.name !== "headshot") {
+            // Handle standalone image fields (logo, etc.)
+            const imageUrl = imageUploads[field.name];
+            if (imageUrl && field.replacements) {
+              for (const replacement of field.replacements) {
+                if (replacement.pattern) {
+                  // Replace both src="..." and href="..." patterns for SVG
+                  html = html.replace(new RegExp(`src="${replacement.pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`, "g"), `src="${imageUrl}"`);
+                  html = html.replace(new RegExp(`href="${replacement.pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`, "g"), `href="${imageUrl}"`);
+                  // Also replace just the placeholder text
+                  html = html.replace(new RegExp(replacement.pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), "g"), imageUrl);
+                }
+              }
+            }
           } else {
             // Get value from submission
-            const value = (submission as any)[field.name];
+            // First try direct property (for backwards compatibility with eventTitle, etc.)
+            let value = (submission as any)[field.name];
+            
+            // If not found, try reading from uploadUrls.fields (for dynamic fields)
+            if (value === undefined || value === null) {
+              try {
+                if (submission.uploadUrls && typeof submission.uploadUrls === "string") {
+                  const parsed = JSON.parse(submission.uploadUrls);
+                  if (parsed.fields && parsed.fields[field.name] !== undefined) {
+                    value = parsed.fields[field.name];
+                    // If it's a date field and value is an ISO string, convert to Date
+                    if (field.type === "date" && typeof value === "string") {
+                      value = new Date(value);
+                    }
+                  }
+                }
+              } catch {
+                // If parsing fails, value stays undefined
+              }
+            }
+            
             // Process field even if value is undefined/null (for optional fields)
             // replaceField will handle missing values gracefully
             html = replaceField(html, field, value, submission);

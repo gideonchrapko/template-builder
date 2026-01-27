@@ -1,6 +1,7 @@
 import { readFile } from "fs/promises";
 import { join } from "path";
 import { existsSync } from "fs";
+import { prisma } from "@/lib/prisma";
 
 export interface TemplateField {
   type: "text" | "color" | "date" | "time" | "people" | "image";
@@ -60,6 +61,23 @@ export async function getTemplateConfig(family: string): Promise<TemplateConfig 
     return configCache.get(family)!;
   }
 
+  // Priority 1: Check database (for Figma imports and production)
+  try {
+    const template = await prisma.template.findUnique({
+      where: { family },
+    });
+    
+    if (template?.configJson) {
+      const config = JSON.parse(template.configJson) as TemplateConfig;
+      configCache.set(family, config);
+      return config;
+    }
+  } catch (error) {
+    console.warn(`Failed to load template ${family} from database:`, error);
+    // Fall through to filesystem
+  }
+
+  // Priority 2: Check filesystem (for existing templates and development)
   const configPath = join(process.cwd(), "templates", family, "config.json");
   
   if (!existsSync(configPath)) {
@@ -77,21 +95,52 @@ export async function getTemplateConfig(family: string): Promise<TemplateConfig 
 }
 
 export async function getAllTemplateConfigs(): Promise<TemplateConfig[]> {
-  const templatesDir = join(process.cwd(), "templates");
-  
-  if (!existsSync(templatesDir)) {
-    return [];
+  const configs: TemplateConfig[] = [];
+  const processedFamilies = new Set<string>();
+
+  // Priority 1: Load from database (Figma imports and production)
+  try {
+    const dbTemplates = await prisma.template.findMany({
+      where: {
+        configJson: { not: null },
+      },
+    });
+
+    for (const template of dbTemplates) {
+      if (template.configJson) {
+        try {
+          const config = JSON.parse(template.configJson) as TemplateConfig;
+          configs.push(config);
+          processedFamilies.add(template.family);
+        } catch (error) {
+          console.warn(`Failed to parse config for template ${template.family}:`, error);
+        }
+      }
+    }
+  } catch (error) {
+    console.warn("Failed to load templates from database:", error);
   }
 
-  // For now, we'll hardcode the known families
-  // In the future, we could read the directory
-  const families = ["mtl-code", "code-a-quebec", "code-a-quebec-thumbnail"];
-  const configs: TemplateConfig[] = [];
-
-  for (const family of families) {
-    const config = await getTemplateConfig(family);
-    if (config) {
-      configs.push(config);
+  // Priority 2: Load from filesystem (existing templates and development)
+  const templatesDir = join(process.cwd(), "templates");
+  
+  if (existsSync(templatesDir)) {
+    const { readdir } = await import("fs/promises");
+    const entries = await readdir(templatesDir, { withFileTypes: true });
+    const families = entries
+      .filter(entry => entry.isDirectory())
+      .map(entry => entry.name);
+    
+    for (const family of families) {
+      // Skip if already loaded from database
+      if (processedFamilies.has(family)) {
+        continue;
+      }
+      
+      const config = await getTemplateConfig(family);
+      if (config) {
+        configs.push(config);
+      }
     }
   }
 

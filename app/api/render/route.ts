@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { renderTemplate, getPosterDimensions } from "@/lib/template-renderer";
+import { getTemplateConfig } from "@/lib/template-registry";
 import puppeteerCore from "puppeteer-core";
 import chromium from "@sparticuz/chromium";
 
@@ -85,7 +86,20 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
     }
-    const dimensions = getPosterDimensions(submission.scale);
+    
+    // Get template dimensions from config (use actual template size, not hardcoded)
+    const config = await getTemplateConfig(submission.templateFamily);
+    let dimensions;
+    if (config && config.width && config.height) {
+      // Use template's actual dimensions with scale
+      dimensions = {
+        width: config.width * submission.scale,
+        height: config.height * submission.scale,
+      };
+    } else {
+      // Fallback to hardcoded dimensions for backwards compatibility
+      dimensions = getPosterDimensions(submission.scale);
+    }
 
     // Launch Puppeteer with Chromium
     // For Vercel, use @sparticuz/chromium (serverless-optimized)

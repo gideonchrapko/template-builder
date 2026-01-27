@@ -1,6 +1,8 @@
 # 🗺️ Migration Roadmap: Current System → Node-Based System
 
-> **Copy this entire document into Notion** - It's formatted for Notion's markdown support
+> **Source of truth:** This Markdown file  
+> **Notion:** Read-only mirror (auto-synced from Markdown)  
+> Phases appear in the Notion timeline **only if explicit start and end dates are defined**.
 
 ---
 
@@ -16,25 +18,32 @@
 
 ---
 
-## 📊 Timeline Overview
+## 📊 Timeline Overview (Human-readable)
 
-```
 Phase 1: Foundation          [██████████] Weeks 1-4 ✅ COMPLETE
-Phase 2: Convert Templates   [██████████] Weeks 5-6 ✅ COMPLETE (format configuration implemented)
-Phase 3: Design Tool Import  [░░░░░░░░░░░░] Weeks 7-12
-Phase 4: Variants            [█████░░░░░] Weeks 13-14 🟡 60% (core implemented)
-Phase 5: Tokens              [███████░░░] Weeks 15-16 🟡 70% (core implemented, UI pending)
+Phase 2: Convert Templates   [██████████] Weeks 5-6 ✅ COMPLETE
+Phase 3: Design Tool Import  [███░░░░░░░] Weeks 7-12 🟡 In Progress
+Phase 4: Variants            [█████░░░░░] Weeks 13-14 🟡 Partial
+Phase 5: Tokens              [███████░░░] Weeks 15-16 🟡 Partial
 Phase 6: Cloud Storage       [░░░░░░░░░░] Week 17
 Phase 7: Render Queue        [░░░░░░░░░░] Weeks 18-20
 Phase 8: Long-Format Content [░░░░░░░░░░] Weeks 21-24
-```
 
-**Total Timeline**: 24 weeks (~6 months)
-**Note**: Phase 2 completed - templates converted with explicit format configuration. HTML templates remain first-class citizens in the hybrid system.
+> ⚠️ This ASCII timeline is **informational only**.  
+> The Notion timeline is driven **exclusively** by the metadata blocks below.
 
 ---
 
-## 🎯 Phase 1: Foundation (Weeks 1-4)
+## 🎯 Phase 1: Foundation
+
+<!--
+notion:
+  id: phase-1
+  start:
+  end:
+  status: complete
+  progress: 100
+-->
 
 **Goal**: Build the core node graph system (start simple, extensible later)
 
@@ -131,7 +140,16 @@ Phase 8: Long-Format Content [░░░░░░░░░░] Weeks 21-24
 
 ---
 
-## 🔄 Phase 2: Convert Templates (Optional - Weeks 5-6)
+## 🔄 Phase 2: Convert Templates (Optional)
+
+<!--
+notion:
+  id: phase-2
+  start:
+  end:
+  status: complete
+  progress: 100
+-->
 
 **Goal**: Selectively convert HTML templates to node graphs when it adds value
 
@@ -189,22 +207,214 @@ Phase 8: Long-Format Content [░░░░░░░░░░] Weeks 21-24
 
 ---
 
-## 🎨 Phase 3: Design Tool Import (Weeks 7-12)
+## 🎨 Phase 3: Design Tool Import
+
+<!--
+notion:
+  id: phase-3
+  start:
+  end:
+  status: in-progress
+  progress: 30
+-->
 
 **Goal**: Import designs from Figma and Illustrator as node graphs
 
 ### Tasks
 
-#### Figma Plugin (Weeks 7-10)
+#### Step 1: Define Perfect Export Schema (Weeks 7-8) 🆕
 
+**Goal**: Create a declarative export schema that eliminates hardcoded rules in the generator
+
+**Problem Statement**: 
+The current `figma-template-generator.ts` has too many hardcoded assumptions (centering images, fixing padding, frame handling). The generator should be a simple translator that follows explicit instructions from the export, not a smart guesser.
+
+**Approach**: 
+Design the export schema to be the source of truth. The generator becomes a "dumb" translator that reads metadata and generates HTML accordingly.
+
+##### Action Items (You Need to Figure Out)
+
+1. **Document Required Behaviors** 📝
+   - [ ] List all element types you need (text, images, frames, vectors, etc.)
+   - [ ] For each type, document:
+     - [ ] Positioning rules (absolute, relative, centered, etc.)
+     - [ ] Sizing behavior (fixed, fit-content, contain, cover, etc.)
+     - [ ] Text behavior (wrap, single-line, truncate, etc.)
+     - [ ] Color sources (static hex, dynamic from form, token-based)
+     - [ ] Layout constraints (min-width, max-width, padding, etc.)
+   - [ ] Document edge cases (what happens when text is too long? image too small?)
+   - [ ] Create a behavior matrix: Element Type × Behavior = Required Metadata
+
+2. **Design Export Schema Structure** 🏗️
+   - [ ] Define top-level schema structure
+   - [ ] Design node metadata format (what goes in each node?)
+   - [ ] Design layout metadata format (how to describe positioning/sizing?)
+   - [ ] Design styling metadata format (how to describe colors, fonts, etc?)
+   - [ ] Design binding metadata format (how to describe dynamic fields?)
+   - [ ] Create TypeScript interfaces for the schema
+   - [ ] Write JSON Schema validation rules
+
+3. **Create Test Cases** 🧪
+   - [ ] Design 3-5 test templates with different complexity levels:
+     - [ ] Simple: Single text field, single image
+     - [ ] Medium: Text in frame, centered image, multiple fields
+     - [ ] Complex: Multiple frames, nested elements, dynamic colors
+   - [ ] For each test template, manually create the "perfect" export JSON
+   - [ ] Document what metadata each element needs
+   - [ ] Test that the generator can produce perfect HTML from perfect JSON
+
+4. **Iterate on Schema Design** 🔄
+   - [ ] Start with minimal schema (just what you need for December layout)
+   - [ ] Test with December layout export
+   - [ ] Identify gaps (what metadata is missing?)
+   - [ ] Add missing metadata to schema
+   - [ ] Re-test until December layout works perfectly
+   - [ ] Test with other templates to find edge cases
+   - [ ] Refine schema based on learnings
+
+##### Schema Design Plan
+
+**Phase 1: Minimal Viable Schema (Week 7)**
+Start with just what you need for December layout:
+
+```typescript
+interface FigmaExportNode {
+  // Existing structure
+  id: string;
+  name: string;
+  type: "TEXT" | "RECTANGLE" | "FRAME" | "VECTOR" | ...;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  
+  // NEW: Layout metadata (explicit instructions)
+  layout?: {
+    positioning: "absolute" | "relative" | "centered" | "flex";
+    sizing: "fixed" | "fit-content" | "contain" | "cover" | "auto";
+    alignment?: {
+      horizontal: "left" | "center" | "right" | "stretch";
+      vertical: "top" | "center" | "bottom" | "stretch";
+    };
+    constraints?: {
+      minWidth?: number;
+      maxWidth?: number;
+      minHeight?: number;
+      maxHeight?: number;
+    };
+  };
+  
+  // NEW: Text behavior metadata
+  textBehavior?: {
+    wrap: "none" | "wrap" | "truncate";
+    overflow: "visible" | "hidden" | "ellipsis";
+    lineHeight?: number;
+    letterSpacing?: number;
+  };
+  
+  // NEW: Color source metadata
+  colorSource?: {
+    type: "static" | "dynamic" | "token";
+    value?: string; // hex if static
+    field?: string; // field name if dynamic (e.g., "primaryColor")
+    token?: string; // token name if token-based
+  };
+  
+  // NEW: Container behavior (for FRAMEs)
+  containerBehavior?: {
+    layout: "flex" | "grid" | "absolute" | "block";
+    direction?: "row" | "column";
+    justifyContent?: "flex-start" | "center" | "flex-end" | "space-between";
+    alignItems?: "flex-start" | "center" | "flex-end" | "stretch";
+    padding?: { top?: number; right?: number; bottom?: number; left?: number };
+  };
+  
+  // Existing children
+  children?: FigmaExportNode[];
+}
+```
+
+**Phase 2: Test & Refine (Week 7-8)**
+1. Create December layout export with new schema
+2. Update generator to read metadata (remove hardcoded rules)
+3. Test: Does it produce perfect HTML?
+4. Identify gaps → add to schema
+5. Repeat until perfect
+
+**Phase 3: Generalize (Week 8)**
+1. Test with 2-3 other templates
+2. Find edge cases
+3. Add missing metadata types
+4. Document schema completely
+
+##### Testable Deliverables
+
+**Week 7 Deliverables:**
+- [ ] Schema TypeScript interfaces defined (`lib/figma-export-schema.ts`)
+- [ ] December layout export JSON with new schema (`examples/december-layout-v2.json`)
+- [ ] Updated generator that reads metadata (no hardcoded rules for December layout)
+- [ ] Test: December layout renders perfectly
+
+**Week 8 Deliverables:**
+- [ ] Complete schema documentation (`FIGMA-EXPORT-SCHEMA.md`)
+- [ ] 3 test template exports using schema
+- [ ] Generator passes all tests (no hardcoded rules)
+- [ ] Schema validation script (`bun run test:schema`)
+
+##### Success Criteria
+
+✅ **Generator has zero hardcoded layout rules** (all from metadata)  
+✅ **December layout works perfectly** (text fits, image centered, colors dynamic)  
+✅ **Schema is extensible** (easy to add new metadata types)  
+✅ **Schema is testable** (can validate exports before import)  
+✅ **Schema is documented** (clear what each field means)
+
+##### Next Steps After Schema is Defined
+
+Once you have a perfect schema:
+1. Build Figma plugin to export with this schema
+2. Update generator to be fully metadata-driven
+3. Add schema validation to import API
+4. Document schema for users
+
+**Your Role:**
+- [ ] Document all required behaviors (action item 1)
+- [ ] Design schema structure (action item 2)
+- [ ] Create test cases (action item 3)
+- [ ] Iterate on schema design (action item 4)
+- [ ] Test with December layout until perfect
+- [ ] Validate schema works for other templates
+
+**Testing While You Develop:**
+- Use `examples/december-layout-v2.json` as your test file
+- Run `bun run template:import december-layout-v2.json` after each schema change
+- Compare rendered output with Figma design
+- Iterate until perfect match
+
+#### Figma Plugin (Weeks 9-10)
+
+- [x] Create import API endpoint (`app/api/import/figma`) ✅ MVP Complete
+  - [x] Accepts Figma export JSON format
+  - [x] Generates template config and HTML
+  - [x] **Stores templates in database** (production-ready)
+  - [x] Filesystem fallback for development
+  - [x] Validation script (`bun run test:figma`)
+  - [x] Testing workflow documented
 - [ ] Build Figma plugin
   - [ ] Reads Figma API
   - [ ] Exports nodes (positions, styles, text)
   - [ ] Detects bindings from layer names (`{{eventTitle}}`)
   - [ ] Exports assets (images, fonts)
-- [ ] Create import API endpoint (`app/api/import/figma`)
+  - [ ] Sends export to import API endpoint
 - [ ] Build import UI (`app/admin/templates/import/figma`)
-- [ ] Test import workflow end-to-end
+- [x] Test import workflow end-to-end ✅ Manual testing workflow complete
+
+**Template Storage (Production-Ready)**:
+- ✅ Templates stored in database (`Template` model)
+- ✅ Config JSON stored in `configJson` field
+- ✅ HTML content stored in `htmlContent`, `htmlVariant2`, `htmlVariant3` fields
+- ✅ Template registry checks database first, filesystem fallback
+- ✅ Works in serverless/production environments (Vercel, etc.)
 
 ### Considerations for HTML Templates in Hybrid System
 
@@ -284,8 +494,23 @@ Phase 8: Long-Format Content [░░░░░░░░░░] Weeks 21-24
 
 ### Your Role
 
+**Current (Schema Design Phase)**:
+- [x] Test import API with manual JSON export ✅
+- [x] Validate export JSON structure (`bun run test:figma`) ✅
+- [x] Import template via API endpoint ✅
+- [x] Test template rendering end-to-end ✅
+- [ ] **NEW: Define perfect export schema** (Step 1 above)
+  - [ ] Document all required behaviors for each element type
+  - [ ] Design schema structure with TypeScript interfaces
+  - [ ] Create test cases (3-5 templates of varying complexity)
+  - [ ] Iterate on schema until December layout works perfectly
+  - [ ] Test schema with other templates to find edge cases
+- [ ] Create perfect template from Figma design (using new schema)
+- [ ] Document schema completely (`FIGMA-EXPORT-SCHEMA.md`)
+
+**Future (When Plugin Ready)**:
 - [ ] Install Figma plugin
-- [ ] Test importing a design from Figma
+- [ ] Test importing a design from Figma (via plugin)
 - [ ] Test importing a design from Illustrator (via SVG/PDF)
 - [ ] Map layers to fields in editor
 - [ ] Test token mapping
@@ -294,15 +519,30 @@ Phase 8: Long-Format Content [░░░░░░░░░░] Weeks 21-24
 - [ ] Provide feedback on workflow
 - [ ] Test that imported templates work end-to-end
 
+**Testing Workflow** (See `FIGMA-IMPORT-MVP.md` for details):
+1. Create design in Figma with `{{bindingName}}` layer names
+2. Export to JSON format manually (plugin coming later)
+3. Validate: `bun run test:figma`
+4. Import: `curl -X POST /api/import/figma` with session token
+5. Verify: Check `/templates` page and database
+6. Test: Generate poster and compare with Figma design
+7. Iterate: Update JSON and re-import until perfect
+
 ### Deliverables
 
+- ✅ Import API endpoint working (MVP complete)
+- ✅ Database storage for templates (production-ready)
+- ✅ Template registry with database-first lookup
+- ✅ Export validation script (`bun run test:figma`)
+- ✅ Testing workflow documented (`FIGMA-IMPORT-MVP.md`)
+- ✅ Example export JSON (`examples/figma-export-example.json`)
 - [ ] Figma plugin working
 - [ ] Illustrator import working (via SVG/PDF)
 - [ ] Template editor UI functional
-- [ ] Can import design and create template
-- [ ] Documentation for users
+- [x] Can import design and create template (via manual JSON) ✅
+- [x] Documentation for users (testing guide complete) ✅
 
-### Status: 🔵 Not Started
+### Status: 🟡 In Progress (MVP: Import API Complete → Next: Schema Design)
 
 ### Dependencies
 
@@ -311,7 +551,16 @@ Phase 8: Long-Format Content [░░░░░░░░░░] Weeks 21-24
 
 ---
 
-## 🔀 Phase 4: Variant System (Weeks 13-14)
+## 🔀 Phase 4: Variant System
+
+<!--
+notion:
+  id: phase-4
+  start:
+  end:
+  status: partial
+  progress: 60
+-->
 
 **Goal**: Use variant overrides on node graphs (HTML files remain optional in hybrid system)
 
@@ -371,7 +620,16 @@ Phase 8: Long-Format Content [░░░░░░░░░░] Weeks 21-24
 
 ---
 
-## 🎨 Phase 5: Token System (Weeks 15-16)
+## 🎨 Phase 5: Token System
+
+<!--
+notion:
+  id: phase-5
+  start:
+  end:
+  status: partial
+  progress: 70
+-->
 
 **Goal**: Replace hex colors with semantic color tokens
 
@@ -436,7 +694,16 @@ Phase 8: Long-Format Content [░░░░░░░░░░] Weeks 21-24
 
 ---
 
-## ☁️ Phase 6: Object Storage (Week 17)
+## ☁️ Phase 6: Object Storage
+
+<!--
+notion:
+  id: phase-6
+  start:
+  end:
+  status:
+  progress:
+-->
 
 **Goal**: Move assets to cloud storage (S3/R2)
 
@@ -482,7 +749,16 @@ Phase 8: Long-Format Content [░░░░░░░░░░] Weeks 21-24
 
 ---
 
-## ⚙️ Phase 7: Render Queue (Weeks 18-20)
+## ⚙️ Phase 7: Render Queue
+
+<!--
+notion:
+  id: phase-7
+  start:
+  end:
+  status:
+  progress:
+-->
 
 **Goal**: Make rendering more reliable with job queue
 
@@ -546,7 +822,16 @@ Phase 8: Long-Format Content [░░░░░░░░░░] Weeks 21-24
 
 ---
 
-## 📄 Phase 8: Long-Format Content Support (Weeks 21-24)
+## 📄 Phase 8: Long-Format Content Support
+
+<!--
+notion:
+  id: phase-8
+  start:
+  end:
+  status:
+  progress:
+-->
 
 **Goal**: Support multi-page documents and long-form content
 
@@ -617,7 +902,7 @@ Phase 8: Long-Format Content [░░░░░░░░░░] Weeks 21-24
 |-------|--------|----------|------|----------|
 | Phase 1: Foundation | 🟢 Complete | 100% | 1-4 | **Hybrid system implemented** ✅ |
 | Phase 2: Convert Templates | 🟢 Complete | 100% | 5-6 | **Format configuration implemented** ✅ |
-| Phase 3: Design Tool Import | 🔵 Not Started | 0% | 7-12 | Figma + Illustrator |
+| Phase 3: Design Tool Import | 🟡 In Progress | 40% | 7-12 | **MVP: API + Testing Complete** |
 | Phase 4: Variants | 🟡 Partial | 60% | 13-14 | **Core implemented, unified schema pending** |
 | Phase 5: Tokens | 🟡 Partial | 70% | 15-16 | **Core implemented, UI pending** |
 | Phase 6: Cloud Storage | 🔵 Not Started | 0% | 17 | Infrastructure |
@@ -654,10 +939,14 @@ Phase 8: Long-Format Content [░░░░░░░░░░] Weeks 21-24
 
 ### Milestone 3: Design Import Working
 **Target**: End of Week 12
-- [ ] Can import from Figma
+- [x] Import API endpoint working ✅
+- [x] Database storage for templates ✅
+- [x] Testing workflow documented ✅
+- [x] Can import template from Figma (manual JSON export) ✅
+- [ ] Figma plugin working (automated export)
 - [ ] Can import from Illustrator
 - [ ] Template editor functional
-- [ ] Can create template from design tools
+- [ ] Can create template from design tools (via plugin)
 
 ### Milestone 4: Core Features Complete
 **Target**: End of Week 16
@@ -857,6 +1146,27 @@ Template Registry
 - Render time (should improve with queue)
 - Error rate (should decrease)
 - Template format distribution (nodes vs HTML)
+
+---
+
+## 📋 Notion Sync Rules
+
+- This Markdown file is the **single source of truth**
+- Notion is updated automatically from this file
+- A phase is synced **only if**:
+  - `start` **and** `end` dates are present
+- Phases without dates are ignored by the Notion timeline
+- Removing dates removes the phase from the timeline
+- Editing in Notion is unsupported (changes will be overwritten)
+
+---
+
+## 🧠 Notes
+
+- Keep dates out until you want scheduling pressure
+- Progress and status can exist without dates
+- Timeline visibility is **explicit and intentional**
+- Safe to re-run sync at any time
 
 ---
 

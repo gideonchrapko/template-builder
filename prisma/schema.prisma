@@ -101,6 +101,12 @@ model Template {
   // Node graph data (stored as JSON)
   schema      String?  // JSON string of TemplateSchema (for node format)
   
+  // HTML template storage (for Figma imports and production)
+  configJson  String?  // JSON string of TemplateConfig (for HTML format)
+  htmlContent String?  // HTML template content (for HTML format, variant 1)
+  htmlVariant2 String? // HTML template content for variant 2
+  htmlVariant3 String? // HTML template content for variant 3
+  
   nodes       TemplateNode[]
   
   @@index([family])

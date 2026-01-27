@@ -87,10 +87,26 @@ function buildSchema(config: TemplateConfig) {
     primaryColor: z.string().min(1),
     scale: z.enum(["1", "2", "3"]),
     formats: z.array(z.enum(["png", "jpg", "webp", "pdf"])).min(1),
-    eventTitle: z.string().min(1).max(60),
-    eventDate: z.date(),
-    doorTime: z.string(),
   };
+
+  // Add ALL dynamic fields from config FIRST
+  config.fields.forEach((field) => {
+    if (field.type === "text") {
+      // Text fields are required (user must fill them in)
+      schema[field.name] = z.string().min(1, `${field.label} is required`).max(field.maxLength || 100);
+    } else if (field.type === "color") {
+      schema[field.name] = z.string().min(1);
+    } else if (field.type === "date") {
+      schema[field.name] = z.date();
+    } else if (field.type === "time") {
+      schema[field.name] = z.string();
+    } else if (field.type === "image") {
+      schema[field.name] = z.instanceof(File).optional();
+    }
+  });
+
+  // Don't add hardcoded fields if they're not in the config
+  // These are only for backwards compatibility with old templates that explicitly have them
 
   // Find people field
   const peopleField = config.fields.find((f) => f.type === "people");
@@ -126,11 +142,26 @@ export default function DynamicForm({ templateFamily, config }: DynamicFormProps
     formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
+    mode: "onSubmit", // Only validate on submit, not on change/blur
+    reValidateMode: "onSubmit",
     defaultValues: {
       primaryColor: config.fields.find((f) => f.name === "primaryColor")?.default || "#3D9DFF",
       scale: "1",
       formats: ["png"],
-      doorTime: config.fields.find((f) => f.name === "doorTime")?.default || "18:00",
+      // Set defaults for all dynamic fields (empty strings for text, so user must fill them)
+      ...config.fields.reduce((acc, field) => {
+        if (field.type === "text") {
+          acc[field.name] = field.default || "";
+        } else if (field.type === "color") {
+          acc[field.name] = field.default || "#3D9DFF";
+        } else if (field.type === "date") {
+          acc[field.name] = new Date();
+        } else if (field.type === "time") {
+          acc[field.name] = field.default || "18:00";
+        }
+        return acc;
+      }, {} as Record<string, any>),
+      // No hardcoded defaults - all fields come from config
       // Only include people if the template has a people field
       ...(peopleField ? { people: [{ name: "", role: "", talkTitle: "", headshot: undefined }] } : {}),
     },
@@ -158,10 +189,30 @@ export default function DynamicForm({ templateFamily, config }: DynamicFormProps
       data.formats.forEach((format: "png" | "jpg" | "webp" | "pdf") => {
         formData.append("formats", format);
       });
-      formData.append("eventTitle", data.eventTitle);
-      formData.append("eventDate", data.eventDate.toISOString());
-      formData.append("doorTime", data.doorTime);
+      
+      // Append all dynamic text/date/time fields from config
+      config.fields.forEach((field) => {
+        if (field.type === "text" && data[field.name as keyof FormData]) {
+          formData.append(field.name, data[field.name as keyof FormData] as string);
+        } else if (field.type === "date" && data[field.name as keyof FormData]) {
+          const dateValue = data[field.name as keyof FormData] as Date;
+          formData.append(field.name, dateValue.toISOString());
+        } else if (field.type === "time" && data[field.name as keyof FormData]) {
+          formData.append(field.name, data[field.name as keyof FormData] as string);
+        }
+      });
+      
       formData.append("templateFamily", templateFamily);
+
+      // Append standalone image fields (e.g., logo)
+      config.fields
+        .filter((f) => f.type === "image" && f.name !== "headshot")
+        .forEach((field) => {
+          const file = (data as any)[field.name] as File | undefined;
+          if (file) {
+            formData.append(field.name, file);
+          }
+        });
 
       // Append headshots (compress first if needed) - only if people field exists
       if (peopleField && data.people && Array.isArray(data.people)) {
@@ -210,9 +261,16 @@ export default function DynamicForm({ templateFamily, config }: DynamicFormProps
   };
 
   const onError = (errors: any) => {
-    const firstError = Object.values(errors)[0] as any;
-    if (firstError?.message) {
-      alert(`Validation error: ${firstError.message}`);
+    // Find the first error and show which field it is
+    const errorEntries = Object.entries(errors);
+    if (errorEntries.length > 0) {
+      const [fieldName, error] = errorEntries[0];
+      const errorMessage = (error as any)?.message || "Validation error";
+      const fieldLabel = config.fields.find(f => f.name === fieldName)?.label || fieldName;
+      alert(`Validation error in "${fieldLabel}": ${errorMessage}`);
+      console.error("Form validation errors:", errors);
+    } else {
+      alert("Validation error: Please check all required fields");
     }
   };
 
@@ -232,6 +290,7 @@ export default function DynamicForm({ templateFamily, config }: DynamicFormProps
                 <Input
                   id={field.name}
                   type="color"
+                  defaultValue={field.default || "#3D9DFF"}
                   {...register(field.name as keyof FormData)}
                   className="h-10 w-full"
                 />
@@ -316,8 +375,9 @@ export default function DynamicForm({ templateFamily, config }: DynamicFormProps
           <CardTitle>Event Information</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* All text fields (except headerCopy which is handled separately) */}
           {config.fields
-            .filter((f) => f.type === "text" && f.name === "eventTitle")
+            .filter((f) => f.type === "text" && f.name !== "headerCopy")
             .map((field) => (
               <div key={field.name}>
                 <Label htmlFor={field.name}>{field.label}</Label>
@@ -341,9 +401,9 @@ export default function DynamicForm({ templateFamily, config }: DynamicFormProps
               <div key={field.name}>
                 <Label htmlFor={field.name}>{field.label}</Label>
                 <DatePicker
-                  value={watch("eventDate")}
-                  onChange={(date) => setValue("eventDate", date!)}
-                  error={errors.eventDate?.message as string | undefined}
+                  value={watch(field.name as keyof FormData) as Date}
+                  onChange={(date) => setValue(field.name as keyof FormData, date! as any)}
+                  error={errors[field.name as keyof typeof errors]?.message as string | undefined}
                 />
               </div>
             ))}
@@ -358,6 +418,51 @@ export default function DynamicForm({ templateFamily, config }: DynamicFormProps
                   type="time"
                   {...register(field.name as keyof FormData)}
                   defaultValue={field.default}
+                />
+                {errors[field.name as keyof typeof errors] && (
+                  <p className="text-sm text-destructive mt-1">
+                    {errors[field.name as keyof typeof errors]?.message as string}
+                  </p>
+                )}
+              </div>
+            ))}
+
+          {/* Standalone image fields (e.g., logo) */}
+          {config.fields
+            .filter((f) => f.type === "image" && f.name !== "headshot")
+            .map((field) => (
+              <div key={field.name}>
+                <Label htmlFor={field.name}>{field.label}</Label>
+                <Input
+                  id={field.name}
+                  type="file"
+                  accept="image/svg+xml,image/png,image/jpeg,image/jpg,image/webp"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setValue(field.name as keyof FormData, file as any, { shouldValidate: true });
+                    }
+                  }}
+                />
+                {errors[field.name as keyof typeof errors] && (
+                  <p className="text-sm text-destructive mt-1">
+                    {errors[field.name as keyof typeof errors]?.message as string}
+                  </p>
+                )}
+              </div>
+            ))}
+
+          {/* Header copy field (for variant with header) */}
+          {config.fields
+            .filter((f) => f.type === "text" && f.name === "headerCopy")
+            .map((field) => (
+              <div key={field.name}>
+                <Label htmlFor={field.name}>{field.label}</Label>
+                <Input
+                  id={field.name}
+                  {...register(field.name as keyof FormData)}
+                  placeholder={field.placeholder}
+                  maxLength={field.maxLength}
                 />
                 {errors[field.name as keyof typeof errors] && (
                   <p className="text-sm text-destructive mt-1">

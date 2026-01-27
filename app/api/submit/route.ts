@@ -21,13 +21,37 @@ export async function POST(req: NextRequest) {
     if (!formats || formats.length === 0) {
       return NextResponse.json({ error: "At least one format must be selected" }, { status: 400 });
     }
-    const eventTitle = formData.get("eventTitle") as string;
-    const eventDate = new Date(formData.get("eventDate") as string);
     const templateFamily = (formData.get("templateFamily") as string) || "mtl-code";
-    const doorTime = (formData.get("doorTime") as string) || "18:00";
     
-    // Get address from config
+    // Get config to determine which fields are available
     const config = await getTemplateConfig(templateFamily);
+    
+    // Collect all dynamic text/date/time fields from form data
+    const dynamicFields: Record<string, string | Date> = {};
+    if (config) {
+      for (const field of config.fields) {
+        if (field.type === "text" || field.type === "time") {
+          const value = formData.get(field.name) as string;
+          if (value) {
+            dynamicFields[field.name] = value;
+          }
+        } else if (field.type === "date") {
+          const value = formData.get(field.name) as string;
+          if (value) {
+            // Store as ISO string for JSON serialization
+            dynamicFields[field.name] = new Date(value).toISOString();
+          }
+        }
+      }
+    }
+    
+    // Backwards compatibility: use hardcoded fields if they exist, otherwise use defaults
+    const eventTitle = (formData.get("eventTitle") as string) || dynamicFields.eventTitle as string || "";
+    const eventDateValue = formData.get("eventDate") as string;
+    const eventDate = eventDateValue ? new Date(eventDateValue) : (dynamicFields.eventDate as Date || new Date());
+    const doorTime = (formData.get("doorTime") as string) || dynamicFields.doorTime as string || "18:00";
+    
+    // Get address from config (config already loaded above)
     const venueName = config?.address?.venueName || "Botpress HQ";
     const addressLine = config?.address?.addressLine || "400 Blvd. De Maisonneuve Ouest";
     const cityLine = config?.address?.cityLine || "Montreal, QC  H3A 1L4";
@@ -81,6 +105,45 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Process standalone image fields (e.g., logo, svgLogo)
+    const imageUploads: Record<string, string> = {};
+    if (config) {
+      for (const field of config.fields) {
+        if (field.type === "image" && field.name !== "headshot") {
+          const imageFile = formData.get(field.name) as File;
+          if (imageFile) {
+            // Convert to base64 data URI
+            const bytes = await imageFile.arrayBuffer();
+            const inputBuffer = Buffer.from(bytes);
+            
+            // For SVG, keep as-is. For other images, compress with sharp
+            let mimeType = imageFile.type;
+            let base64: string;
+            
+            if (imageFile.type === "image/svg+xml") {
+              // SVG: read as text and convert to base64
+              const svgText = inputBuffer.toString("utf-8");
+              base64 = Buffer.from(svgText).toString("base64");
+              mimeType = "image/svg+xml";
+            } else {
+              // Other images: compress with sharp
+              const compressedBuffer = await sharp(inputBuffer)
+                .resize(2000, 2000, {
+                  fit: "inside",
+                  withoutEnlargement: true,
+                })
+                .jpeg({ quality: 90, mozjpeg: true })
+                .toBuffer();
+              base64 = compressedBuffer.toString("base64");
+              mimeType = "image/jpeg";
+            }
+            
+            imageUploads[field.name] = `data:${mimeType};base64,${base64}`;
+          }
+        }
+      }
+    }
+
     const secondaryColor = lightenColor(primaryColor, 15);
     // For templates without people, use variant "1" (default)
     // For templates with people, use the people count as variant
@@ -88,6 +151,12 @@ export async function POST(req: NextRequest) {
       ? `${templateFamily}-${peopleCount}` 
       : `${templateFamily}-1`;
 
+    // Merge standalone image uploads into uploadUrls array format
+    // The template engine expects uploadUrls as array, but we'll also store imageUploads
+    // in a way it can access. For now, we'll store them in a separate JSON field or
+    // pass them through the render API. Let's use a simple approach: store in uploadUrls
+    // with a special format that the template engine can parse.
+    
     // Create submission record
     const submission = await prisma.submission.create({
       data: {
@@ -105,7 +174,11 @@ export async function POST(req: NextRequest) {
         eventDate,
         doorTime,
         people: JSON.stringify(people),
-        uploadUrls: JSON.stringify(uploadUrls),
+        uploadUrls: JSON.stringify({
+          headshots: uploadUrls,
+          images: imageUploads, // Standalone image uploads (logo, etc.)
+          fields: dynamicFields, // Dynamic text/date/time fields
+        }),
       },
     });
 

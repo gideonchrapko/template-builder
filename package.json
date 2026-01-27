@@ -11,7 +11,11 @@
     "db:migrate": "node scripts/setup-schema.js && bunx prisma migrate deploy",
     "db:studio": "node scripts/setup-schema.js && bunx prisma studio",
     "postinstall": "node scripts/setup-schema.js && bunx prisma generate",
-    "schema:setup": "node scripts/setup-schema.js"
+    "schema:setup": "node scripts/setup-schema.js",
+    "test:figma": "bun run scripts/test-figma-import.ts",
+    "template:delete": "bun run scripts/delete-template.ts",
+    "template:list": "bun run scripts/delete-template.ts --list",
+    "template:import": "bun run scripts/test-import-direct.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.7.0",
