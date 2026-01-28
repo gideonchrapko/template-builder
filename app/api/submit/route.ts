@@ -77,11 +77,29 @@ export async function POST(req: NextRequest) {
         componentsWithImages = [];
         for (const comp of selectedComponents) {
           const nodeId = comp.figmaNodeId || comp.id;
-          const imageUrl = await getComponentImageUrl(figmaFileId, nodeId, "png");
-          componentsWithImages.push({
+          // Use scale=2 for main-logo and main-illustration for higher resolution
+          const isMainImage = comp.type === 'main' && (comp.name.includes('logo') || comp.name.includes('illustration'));
+          const scale = isMainImage ? 2 : 1;
+          const imageUrl = await getComponentImageUrl(figmaFileId, nodeId, "png", scale);
+          
+          const compWithImage = {
             ...comp,
             imageUrl,
-          });
+          };
+          
+          // If this is a background component with a Grid layer, fetch it too
+          if (comp.type === 'background' && comp.gridNodeId) {
+            try {
+              const gridImageUrl = await getComponentImageUrl(figmaFileId, comp.gridNodeId, "png", 1);
+              (compWithImage as any).gridImageUrl = gridImageUrl;
+              // Small delay after grid fetch
+              await new Promise(resolve => setTimeout(resolve, 50));
+            } catch (error) {
+              console.warn(`Failed to fetch Grid layer for background ${comp.name}:`, error);
+            }
+          }
+          
+          componentsWithImages.push(compWithImage);
           // Small delay to avoid rate limiting (50ms between requests)
           await new Promise(resolve => setTimeout(resolve, 50));
         }

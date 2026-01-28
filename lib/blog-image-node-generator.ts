@@ -143,6 +143,24 @@ export function generateBlogImageNodeSchema(
     nodes.push(supportingNode);
   });
 
+  // Grid layer (on top of everything - highest zIndex)
+  // The Grid layer is inside the background component, not a separate component
+  // Add it last so it has the highest zIndex and renders on top
+  if (background.gridImageUrl) {
+    const gridNode: ImageNode = {
+      id: 'grid-layer',
+      type: 'image',
+      x: 0,
+      y: 0,
+      width,
+      height,
+      zIndex: zIndex++, // Highest zIndex - renders on top of everything
+      src: background.gridImageUrl,
+      fit: 'cover',
+    };
+    nodes.push(gridNode);
+  }
+
   // Create root frame
   const root: FrameNode = {
     id: 'root',

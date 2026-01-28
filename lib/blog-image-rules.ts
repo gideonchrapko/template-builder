@@ -126,9 +126,11 @@ export interface TemplateSelection {
 export interface ComponentInfo {
   id: string;
   name: string;
-  type: 'background' | 'main' | 'supporting';
+  type: 'background' | 'main' | 'supporting' | 'grid';
   description?: string;
   imageUrl?: string; // URL to component image (from Figma API or stored asset)
   figmaFileId?: string; // Figma file ID if using Figma API
   figmaNodeId?: string; // Figma node ID if using Figma API
+  gridNodeId?: string; // Grid layer node ID (for backgrounds that contain a Grid layer)
+  gridImageUrl?: string; // Grid layer image URL (fetched separately)
 }

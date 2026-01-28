@@ -58,6 +58,28 @@ export async function loadComponentsFromFigma(fileId: string): Promise<Component
 }
 
 /**
+ * Helper function to find Grid layer inside a node (recursive search)
+ */
+function findGridLayer(node: any): any | null {
+  // If the node itself is named "Grid", return it
+  if (node.name === 'Grid') {
+    return node;
+  }
+  
+  // If the node has children, search through them
+  if (node.children && Array.isArray(node.children)) {
+    for (const child of node.children) {
+      const found = findGridLayer(child);
+      if (found) {
+        return found;
+      }
+    }
+  }
+  
+  return null;
+}
+
+/**
  * Categorize a Figma component based on naming convention
  */
 function categorizeComponent(node: any, fileId: string): ComponentInfo | null {
@@ -65,6 +87,10 @@ function categorizeComponent(node: any, fileId: string): ComponentInfo | null {
 
   // Background images: bg-number-colour
   if (name.startsWith('bg-')) {
+    // Look for Grid layer inside the background component
+    const gridLayer = findGridLayer(node);
+    const gridNodeId = gridLayer ? gridLayer.id : undefined;
+    
     return {
       id: node.id,
       name: node.name,
@@ -72,7 +98,8 @@ function categorizeComponent(node: any, fileId: string): ComponentInfo | null {
       description: `Background image: ${node.name}`,
       figmaFileId: fileId,
       figmaNodeId: node.id,
-      imageUrl: `https://www.figma.com/file/${fileId}?node-id=${encodeURIComponent(node.id)}`
+      imageUrl: `https://www.figma.com/file/${fileId}?node-id=${encodeURIComponent(node.id)}`,
+      gridNodeId: gridNodeId, // Store Grid layer node ID if found
     };
   }
 
@@ -102,23 +129,37 @@ function categorizeComponent(node: any, fileId: string): ComponentInfo | null {
     };
   }
 
+  // Grid layer: components named "grid" (case-insensitive)
+  if (name === 'grid') {
+    return {
+      id: node.id,
+      name: node.name,
+      type: 'grid',
+      description: `Grid layer: ${node.name}`,
+      figmaFileId: fileId,
+      figmaNodeId: node.id,
+      imageUrl: `https://www.figma.com/file/${fileId}?node-id=${encodeURIComponent(node.id)}`
+    };
+  }
+
   return null;
 }
 
 /**
  * Get component image URL from Figma API
  * This generates a direct image URL for a component
+ * @param scale - Image scale factor (1, 2, 3, or 4). Higher = better quality but larger file size. Default: 2 for main images, 1 for others.
  */
-export async function getComponentImageUrl(fileId: string, nodeId: string, format: 'png' | 'jpg' = 'png'): Promise<string> {
+export async function getComponentImageUrl(fileId: string, nodeId: string, format: 'png' | 'jpg' = 'png', scale: number = 1): Promise<string> {
   const accessToken = process.env.FIGMA_ACCESS_TOKEN;
   
   if (!accessToken) {
     throw new Error('FIGMA_ACCESS_TOKEN not configured');
   }
 
-  // Use Figma's image API to get rendered image
+  // Use Figma's image API to get rendered image with scale parameter for higher resolution
   const response = await fetch(
-    `https://api.figma.com/v1/images/${fileId}?ids=${nodeId}&format=${format}`,
+    `https://api.figma.com/v1/images/${fileId}?ids=${nodeId}&format=${format}&scale=${scale}`,
     {
       headers: {
         'X-Figma-Token': accessToken
